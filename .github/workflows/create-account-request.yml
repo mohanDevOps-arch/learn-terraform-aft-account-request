@@ -1,0 +1,197 @@
+name: Create AFT Account Request
+
+on:
+  workflow_dispatch:
+    inputs:
+      account_name:
+        description: 'AWS Account Name'
+        required: true
+        type: string
+      account_email:
+        description: 'AWS Account Email'
+        required: true
+        type: string
+      organizational_unit:
+        description: 'Organizational Unit (OU) path'
+        required: true
+        type: string
+        default: 'AFTLearn'
+      sso_user_email:
+        description: 'SSO User Email'
+        required: true
+        type: string
+      sso_user_first_name:
+        description: 'SSO User First Name'
+        required: true
+        type: string
+      sso_user_last_name:
+        description: 'SSO User Last Name'
+        required: true
+        type: string
+      environment:
+        description: 'Environment Tag'
+        required: true
+        type: choice
+        options:
+          - Dev
+          - Test
+          - Staging
+          - Prod
+      customizations:
+        description: 'Account Customizations Template'
+        required: true
+        type: choice
+        options:
+          - sandbox
+          - production
+          - none
+        default: 'sandbox'
+      change_reason:
+        description: 'Reason for Account Creation'
+        required: true
+        type: string
+
+jobs:
+  create-account-request:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Setup Git
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+      
+      - name: Generate module name
+        id: generate_name
+        run: |
+          # Create a safe module name from account name
+          MODULE_NAME=$(echo "${{ inputs.account_name }}" | tr '[:upper:]' '[:lower:]' | tr ' ' '_' | tr -cd '[:alnum:]_')
+          echo "module_name=${MODULE_NAME}" >> $GITHUB_OUTPUT
+      
+      - name: Create Terraform account request
+        run: |
+          cat >> terraform/main.tf <<EOF
+          
+          # Account Request: ${{ inputs.account_name }}
+          # Created: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          # Requested by: ${{ github.actor }}
+          module "${{ steps.generate_name.outputs.module_name }}" {
+            source = "./modules/aft-account-request"
+          
+            control_tower_parameters = {
+              AccountEmail              = "${{ inputs.account_email }}"
+              AccountName               = "${{ inputs.account_name }}"
+              ManagedOrganizationalUnit = "${{ inputs.organizational_unit }}"
+              SSOUserEmail              = "${{ inputs.sso_user_email }}"
+              SSOUserFirstName          = "${{ inputs.sso_user_first_name }}"
+              SSOUserLastName           = "${{ inputs.sso_user_last_name }}"
+            }
+          
+            account_tags = {
+              "Environment" = "${{ inputs.environment }}"
+              "ManagedBy"   = "AFT"
+              "RequestedBy" = "${{ github.actor }}"
+              "CreatedDate" = "$(date -u +"%Y-%m-%d")"
+            }
+          
+            change_management_parameters = {
+              change_requested_by = "${{ github.actor }}"
+              change_reason       = "${{ inputs.change_reason }}"
+            }
+          
+            custom_fields = {
+              created_by_workflow = "true"
+              github_run_id       = "${{ github.run_id }}"
+            }
+          
+            account_customizations_name = "${{ inputs.customizations }}"
+          }
+          EOF
+      
+      - name: Commit and push changes
+        run: |
+          git add terraform/main.tf
+          git commit -m "feat: Add account request for ${{ inputs.account_name }}
+          
+          Account Details:
+          - Name: ${{ inputs.account_name }}
+          - Email: ${{ inputs.account_email }}
+          - OU: ${{ inputs.organizational_unit }}
+          - Environment: ${{ inputs.environment }}
+          - Customizations: ${{ inputs.customizations }}
+          
+          Module: ${{ steps.generate_name.outputs.module_name }}
+          Requested by: ${{ github.actor }}
+          Reason: ${{ inputs.change_reason }}"
+          
+          git push origin main
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AFT_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AFT_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+          role-to-assume: arn:aws:iam::809574937450:role/AWSControlTowerExecution
+          role-session-name: GitHubActionsAFT
+      
+      - name: Trigger AFT CodePipeline
+        run: |
+          EXECUTION_ID=$(aws codepipeline start-pipeline-execution \
+            --name ct-aft-account-request \
+            --region ap-south-1 \
+            --query 'pipelineExecutionId' \
+            --output text)
+          
+          echo "Pipeline execution started: $EXECUTION_ID"
+          echo "pipeline_execution_id=$EXECUTION_ID" >> $GITHUB_OUTPUT
+        id: trigger_pipeline
+      
+      - name: Create summary
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          ## 🎉 AFT Account Request Created!
+          
+          ### Account Details
+          - **Name**: ${{ inputs.account_name }}
+          - **Email**: ${{ inputs.account_email }}
+          - **OU**: ${{ inputs.organizational_unit }}
+          - **Environment**: ${{ inputs.environment }}
+          - **Customizations**: ${{ inputs.customizations }}
+          
+          ### Request Information
+          - **Requested by**: ${{ github.actor }}
+          - **Reason**: ${{ inputs.change_reason }}
+          - **Module Name**: \`${{ steps.generate_name.outputs.module_name }}\`
+          
+          ### Pipeline Status
+          - **Execution ID**: \`${{ steps.trigger_pipeline.outputs.pipeline_execution_id }}\`
+          - **Region**: ap-south-1
+          
+          ### Next Steps
+          1. Monitor pipeline: [View in AWS Console](https://ap-south-1.console.aws.amazon.com/codesuite/codepipeline/pipelines/ct-aft-account-request/view)
+          2. Account provisioning will start automatically (5-10 min)
+          3. Total time: ~30-45 minutes
+          
+          ### Monitoring Links
+          - [Step Functions](https://ap-south-1.console.aws.amazon.com/states/home?region=ap-south-1)
+          - [DynamoDB Requests](https://ap-south-1.console.aws.amazon.com/dynamodbv2/home?region=ap-south-1#item-explorer?table=aft-request)
+          - [AWS Organizations](https://console.aws.amazon.com/organizations/v2/home/accounts)
+          EOF
+      
+      - name: Comment on commit
+        uses: peter-evans/commit-comment@v3
+        with:
+          body: |
+            🚀 **AFT Account Request Pipeline Triggered**
+            
+            **Account**: ${{ inputs.account_name }}
+            **Pipeline Execution**: ${{ steps.trigger_pipeline.outputs.pipeline_execution_id }}
+            
+            Monitor progress: https://ap-south-1.console.aws.amazon.com/codesuite/codepipeline/pipelines/ct-aft-account-request/view
+

@@ -1,4 +1,18 @@
-# Test Account Request - LearnAFT
+# AFT Account Requests
+# Use GitHub Actions workflow to create new account requests automatically:
+# https://github.com/ravishmck/learn-terraform-aft-account-request/actions/workflows/create-account-request.yml
+#
+# Or manually add module blocks below following this template:
+# module "account_name" {
+#   source = "./modules/aft-account-request"
+#   control_tower_parameters = { ... }
+#   account_tags = { ... }
+#   change_management_parameters = { ... }
+#   custom_fields = { ... }
+#   account_customizations_name = "sandbox"
+# }
+
+# Example Account Request - LearnAFT
 module "learn_aft_test" {
   source = "./modules/aft-account-request"
 
@@ -28,3 +42,7 @@ module "learn_aft_test" {
 
   account_customizations_name = "sandbox"
 }
+
+# ============================================
+# GitHub Actions Auto-Generated Requests Below
+# ============================================
