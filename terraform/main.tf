@@ -46,3 +46,38 @@ module "learn_aft_test" {
 # ============================================
 # GitHub Actions Auto-Generated Requests Below
 # ============================================
+
+# Account Request: Test
+# Created: 2025-12-05 09:20:28 UTC
+# Requested by: ravishmck
+module "test" {
+  source = "./modules/aft-account-request"
+
+  control_tower_parameters = {
+    AccountEmail              = "ravish1408@gmail.com"
+    AccountName               = "Test"
+    ManagedOrganizationalUnit = "AFTLearn"
+    SSOUserEmail              = "ravish1408@gmail.com"
+    SSOUserFirstName          = "Ravish"
+    SSOUserLastName           = "Sankhyan"
+  }
+
+  account_tags = {
+    "Environment" = "Dev"
+    "ManagedBy"   = "AFT"
+    "RequestedBy" = "ravishmck"
+    "CreatedDate" = "2025-12-05"
+  }
+
+  change_management_parameters = {
+    change_requested_by = "ravishmck"
+    change_reason       = "Test"
+  }
+
+  custom_fields = {
+    created_by_workflow = "true"
+    github_run_id       = "19958397764"
+  }
+
+  account_customizations_name = "sandbox"
+}
