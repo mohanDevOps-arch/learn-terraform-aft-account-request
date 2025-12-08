@@ -97,6 +97,9 @@ jobs:
       
       - name: 💾 Commit & Push
         run: |
+          # Pull latest changes first (in case other workflows ran)
+          git pull --rebase origin main || true
+          
           git add terraform/main.tf
           git commit -m "🚀 New Account: ${{ inputs.account_name }}
 
@@ -109,9 +112,16 @@ jobs:
           
           ⚙️ Will be auto-processed by AFT in ~2 minutes"
           
-          git push
-          
-          echo "✅ Pushed successfully!"
+          # Push with retry logic
+          for i in {1..3}; do
+            if git push; then
+              echo "✅ Pushed successfully!"
+              break
+            else
+              echo "⚠️  Push failed, pulling and retrying..."
+              git pull --rebase origin main
+            fi
+          done
       
       - name: 🎉 Success Summary
         run: |
