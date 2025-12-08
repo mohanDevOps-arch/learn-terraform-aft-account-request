@@ -115,3 +115,6 @@ module "aft_test_01" {
 
   account_customizations_name = "sandbox"
 }
+
+# Automation test - EventBridge integration
+# This push should automatically trigger the pipeline!
