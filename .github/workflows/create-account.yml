@@ -52,14 +52,14 @@ jobs:
           TIMESTAMP=$(date +%s)
           
           # Append to main.tf
-          cat >> terraform/main.tf << 'EOF'
+          cat >> terraform/main.tf << EOF
           
           # ═══════════════════════════════════════════════════════════════
           # Account: ${{ inputs.account_name }}
           # Created: $(date '+%Y-%m-%d %H:%M:%S UTC')
           # Requested by: ${{ github.actor }}
           # ═══════════════════════════════════════════════════════════════
-          module "${{ inputs.account_name | lower | replace(' ', '_') }}_TIMESTAMP" {
+          module "${MODULE_NAME}_${TIMESTAMP}" {
             source = "./modules/aft-account-request"
           
             control_tower_parameters = {
