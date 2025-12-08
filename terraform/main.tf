@@ -81,3 +81,37 @@ module "test" {
 
   account_customizations_name = "sandbox"
 }
+
+# Test Account Request - AFTTest01
+# Created: 2025-12-05 for testing account provisioning
+module "aft_test_01" {
+  source = "./modules/aft-account-request"
+
+  control_tower_parameters = {
+    AccountEmail              = "ravish.snkhyn+afttest@gmail.com"
+    AccountName               = "AFTTest01"
+    ManagedOrganizationalUnit = "AFTLearn"
+    SSOUserEmail              = "ravish.snkhyn@gmail.com"
+    SSOUserFirstName          = "Ravish"
+    SSOUserLastName           = "Sankhyan"
+  }
+
+  account_tags = {
+    "Environment" = "Test"
+    "ManagedBy"   = "AFT"
+    "Purpose"     = "Testing AFT Provisioning"
+    "TestDate"    = "2025-12-05"
+  }
+
+  change_management_parameters = {
+    change_requested_by = "Ravish Sankhyan"
+    change_reason       = "Testing AFT account creation process"
+  }
+
+  custom_fields = {
+    group = "test"
+    test_account = "true"
+  }
+
+  account_customizations_name = "sandbox"
+}
