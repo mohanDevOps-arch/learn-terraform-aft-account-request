@@ -283,3 +283,41 @@ module "testfinal_1765187554" {
 
   account_customizations_name = "sandbox"
 }
+
+# ═══════════════════════════════════════════════════════════════
+# Account: Testwithoutnat
+# Created: 2025-12-08 13:58:45 UTC
+# Requested by: ravishmck
+# ═══════════════════════════════════════════════════════════════
+module "testwithoutnat_1765202325" {
+  source = "./modules/aft-account-request"
+
+  control_tower_parameters = {
+    AccountEmail              = "ravish1408@gmail.com"
+    AccountName               = "Testwithoutnat"
+    ManagedOrganizationalUnit = "LearnMck"
+    SSOUserEmail              = "ravish.snkhyn@gmail.com"
+    SSOUserFirstName          = "Ravish"
+    SSOUserLastName           = "Sankhyan"
+  }
+
+  account_tags = {
+    "Environment"  = "Development"
+    "ManagedBy"    = "AFT"
+    "RequestedBy"  = "ravishmck"
+    "CreatedDate"  = "2025-12-08"
+    "CreatedVia"   = "GitHub-Actions"
+  }
+
+  change_management_parameters = {
+    change_requested_by = "ravishmck"
+    change_reason       = "Account request via GitHub Actions"
+  }
+
+  custom_fields = {
+    workflow_run_id = "20030618266"
+    github_actor    = "ravishmck"
+  }
+
+  account_customizations_name = "sandbox"
+}
