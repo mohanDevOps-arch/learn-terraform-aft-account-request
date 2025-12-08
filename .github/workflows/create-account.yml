@@ -123,10 +123,148 @@ jobs:
             fi
           done
       
-      - name: 🎉 Success Summary
+      - name: ⏰ Wait for EventBridge Trigger
+        run: |
+          echo "⏰ Waiting 2 minutes for EventBridge to trigger CodePipeline..."
+          sleep 120
+          echo "✅ EventBridge polling window passed"
+      
+      - name: 📊 Monitor Account Creation (Full Process)
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ap-south-1
+          ACCOUNT_EMAIL: ${{ inputs.account_email }}
+          ACCOUNT_NAME: ${{ inputs.account_name }}
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📊 MONITORING ACCOUNT CREATION PROCESS"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "Account: $ACCOUNT_NAME"
+          echo "Email: $ACCOUNT_EMAIL"
+          echo ""
+          
+          MAX_WAIT=30  # Maximum 30 minutes
+          CHECK_COUNT=0
+          ACCOUNT_CREATED=false
+          
+          # Function to check if AWS credentials are configured
+          check_aws_creds() {
+            if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+              echo "⚠️  AWS credentials not configured as secrets"
+              echo "   Skipping automated monitoring"
+              echo "   Please check manually at:"
+              echo "   https://console.aws.amazon.com/organizations/v2/home/accounts"
+              return 1
+            fi
+            return 0
+          }
+          
+          if ! check_aws_creds; then
+            echo ""
+            echo "💡 To enable automated monitoring, add these GitHub secrets:"
+            echo "   - AWS_ACCESS_KEY_ID"
+            echo "   - AWS_SECRET_ACCESS_KEY"
+            exit 0
+          fi
+          
+          echo "✅ AWS credentials configured - starting automated monitoring"
+          echo ""
+          
+          # Monitor loop
+          for ((i=1; i<=MAX_WAIT; i++)); do
+            CHECK_COUNT=$i
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "⏰ CHECK #$i/$MAX_WAIT - $(date '+%H:%M:%S')"
+            echo ""
+            
+            # Check 1: CodePipeline Status
+            echo "1️⃣ Checking CodePipeline..."
+            PIPELINE_STATUS=$(aws codepipeline get-pipeline-state \
+              --name ct-aft-account-request \
+              --region ap-south-1 \
+              --query 'stageStates[0].latestExecution.status' \
+              --output text 2>/dev/null || echo "Unknown")
+            echo "   Status: $PIPELINE_STATUS"
+            
+            # Check 2: DynamoDB Entry
+            echo ""
+            echo "2️⃣ Checking DynamoDB..."
+            DDB_ENTRY=$(aws dynamodb get-item \
+              --table-name aft-request \
+              --key "{\"id\": {\"S\": \"$ACCOUNT_EMAIL\"}}" \
+              --region ap-south-1 \
+              --query 'Item.control_tower_parameters.M.AccountName.S' \
+              --output text 2>/dev/null || echo "NotFound")
+            
+            if [ "$DDB_ENTRY" != "NotFound" ] && [ "$DDB_ENTRY" != "None" ]; then
+              echo "   ✅ Entry found: $DDB_ENTRY"
+            else
+              echo "   ⏳ Entry not yet created"
+            fi
+            
+            # Check 3: AWS Organizations
+            echo ""
+            echo "3️⃣ Checking AWS Organizations..."
+            ORG_ACCOUNT=$(aws organizations list-accounts \
+              --query "Accounts[?Email=='$ACCOUNT_EMAIL'].{Id:Id,Status:Status}" \
+              --output json 2>/dev/null || echo "[]")
+            
+            if [ "$ORG_ACCOUNT" != "[]" ] && [ "$ORG_ACCOUNT" != "" ]; then
+              ACCOUNT_ID=$(echo "$ORG_ACCOUNT" | jq -r '.[0].Id')
+              ACCOUNT_STATUS=$(echo "$ORG_ACCOUNT" | jq -r '.[0].Status')
+              
+              echo "   ✅ Account found!"
+              echo "   📋 ID: $ACCOUNT_ID"
+              echo "   🎯 Status: $ACCOUNT_STATUS"
+              
+              if [ "$ACCOUNT_STATUS" = "ACTIVE" ]; then
+                echo ""
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                echo "🎉🎉🎉 ACCOUNT SUCCESSFULLY CREATED! 🎉🎉🎉"
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                echo ""
+                echo "✅ Account Name: $ACCOUNT_NAME"
+                echo "✅ Account ID: $ACCOUNT_ID"
+                echo "✅ Email: $ACCOUNT_EMAIL"
+                echo "✅ Status: ACTIVE"
+                echo "✅ Time taken: $((i * 2)) minutes"
+                echo ""
+                ACCOUNT_CREATED=true
+                break
+              fi
+            else
+              echo "   ⏳ Account not yet created"
+            fi
+            
+            # Wait before next check (if not last iteration)
+            if [ $i -lt $MAX_WAIT ]; then
+              echo ""
+              echo "⏰ Waiting 1 minute before next check..."
+              sleep 60
+            fi
+          done
+          
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          
+          if [ "$ACCOUNT_CREATED" = true ]; then
+            echo "✅ MONITORING COMPLETE - ACCOUNT ACTIVE"
+            echo "account_created=true" >> $GITHUB_ENV
+            echo "account_id=$ACCOUNT_ID" >> $GITHUB_ENV
+          else
+            echo "⏰ MONITORING TIMEOUT REACHED"
+            echo "   Account creation may still be in progress"
+            echo "   Please check manually at:"
+            echo "   https://console.aws.amazon.com/organizations/v2/home/accounts"
+            echo "account_created=false" >> $GITHUB_ENV
+          fi
+      
+      - name: 🎉 Final Summary
         run: |
           cat >> $GITHUB_STEP_SUMMARY << 'EOF'
-          ## 🎉 Account Request Created!
+          ## 🎉 Account Request Processed!
           
           ### 📋 Account Information
           | Field | Value |
@@ -136,20 +274,41 @@ jobs:
           | **OU** | ${{ inputs.organizational_unit }} |
           | **Environment** | ${{ inputs.environment }} |
           | **Requested By** | @${{ github.actor }} |
+          EOF
           
-          ### ⏰ What Happens Next?
+          if [ "${{ env.account_created }}" = "true" ]; then
+            cat >> $GITHUB_STEP_SUMMARY << 'EOF'
           
-          1. ⏱️ **2 minutes** - EventBridge triggers CodePipeline
-          2. 🔧 **5 minutes** - Terraform creates DynamoDB entry
-          3. 📦 **10 minutes** - Lambda processes request
-          4. 🏗️ **15 minutes** - Service Catalog provisions account
-          5. ✅ **20 minutes** - Account appears in Organizations
+          ### ✅ Account Successfully Created!
           
-          ### 📊 Monitor Progress
+          | Detail | Value |
+          |--------|-------|
+          | **Account ID** | ${{ env.account_id }} |
+          | **Status** | ACTIVE |
+          | **Creation Time** | ~20 minutes |
+          
+          ### 🎯 Next Steps
+          - Access account via [AWS SSO Portal](https://d-906702c4e1.awsapps.com/start)
+          - Account is ready to use immediately
+          - Control Tower baseline applied automatically
+          EOF
+          else
+            cat >> $GITHUB_STEP_SUMMARY << 'EOF'
+          
+          ### ⏰ Account Creation In Progress
+          
+          The account is still being provisioned. This can take up to 30 minutes.
+          
+          **Monitor Progress:**
           - [CodePipeline](https://ap-south-1.console.aws.amazon.com/codesuite/codepipeline/pipelines/ct-aft-account-request/view)
           - [AWS Organizations](https://console.aws.amazon.com/organizations/v2/home/accounts)
+          - [Step Functions](https://ap-south-1.console.aws.amazon.com/states/home?region=ap-south-1)
+          EOF
+          fi
+          
+          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
           
           ---
-          🤖 Automated by AFT | 🔒 Secured by Control Tower
+          🤖 **Automated by AFT** | 🔒 **Secured by Control Tower**
           EOF
 

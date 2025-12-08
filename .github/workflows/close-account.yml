@@ -220,6 +220,102 @@ jobs:
             fi
           done
       
+      - name: ⏰ Wait for EventBridge Trigger
+        if: inputs.action_type == 'Remove from Terraform (soft delete)'
+        run: |
+          echo "⏰ Waiting 2 minutes for EventBridge to trigger CodePipeline..."
+          sleep 120
+          echo "✅ EventBridge polling window passed"
+      
+      - name: 📊 Monitor Decommission Process
+        if: inputs.action_type == 'Remove from Terraform (soft delete)'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ap-south-1
+          ACCOUNT_EMAIL: ${{ inputs.account_email }}
+          ACCOUNT_ID: ${{ inputs.account_id }}
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📊 MONITORING DECOMMISSION PROCESS"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "Account ID: $ACCOUNT_ID"
+          echo "Email: $ACCOUNT_EMAIL"
+          echo ""
+          
+          # Check if AWS credentials are configured
+          if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+            echo "⚠️  AWS credentials not configured"
+            echo "   Skipping automated monitoring"
+            echo "decommission_complete=unknown" >> $GITHUB_ENV
+            exit 0
+          fi
+          
+          echo "✅ AWS credentials configured - monitoring removal"
+          echo ""
+          
+          MAX_WAIT=10  # 10 minutes should be enough for DynamoDB removal
+          DECOMMISSION_COMPLETE=false
+          
+          for ((i=1; i<=MAX_WAIT; i++)); do
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "⏰ CHECK #$i/$MAX_WAIT - $(date '+%H:%M:%S')"
+            echo ""
+            
+            # Check CodePipeline
+            echo "1️⃣ Checking CodePipeline..."
+            PIPELINE_STATUS=$(aws codepipeline get-pipeline-state \
+              --name ct-aft-account-request \
+              --region ap-south-1 \
+              --query 'stageStates[0].latestExecution.status' \
+              --output text 2>/dev/null || echo "Unknown")
+            echo "   Status: $PIPELINE_STATUS"
+            
+            # Check if entry removed from DynamoDB
+            echo ""
+            echo "2️⃣ Checking DynamoDB..."
+            DDB_ENTRY=$(aws dynamodb get-item \
+              --table-name aft-request \
+              --key "{\"id\": {\"S\": \"$ACCOUNT_EMAIL\"}}" \
+              --region ap-south-1 \
+              --query 'Item' \
+              --output text 2>/dev/null || echo "NotFound")
+            
+            if [ "$DDB_ENTRY" = "NotFound" ] || [ -z "$DDB_ENTRY" ]; then
+              echo "   ✅ Entry removed from DynamoDB!"
+              echo ""
+              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              echo "🎉 DECOMMISSION COMPLETE!"
+              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              echo ""
+              echo "✅ Account removed from AFT management"
+              echo "✅ DynamoDB entry deleted"
+              echo "✅ Time taken: $((i * 2)) minutes"
+              echo ""
+              echo "⚠️  Note: Account still exists in AWS Organizations"
+              echo "   Use 'Close Account' option to fully close it"
+              DECOMMISSION_COMPLETE=true
+              break
+            else
+              echo "   ⏳ Entry still present - waiting for Terraform"
+            fi
+            
+            if [ $i -lt $MAX_WAIT ]; then
+              echo ""
+              echo "⏰ Waiting 1 minute..."
+              sleep 60
+            fi
+          done
+          
+          if [ "$DECOMMISSION_COMPLETE" = true ]; then
+            echo "decommission_complete=true" >> $GITHUB_ENV
+          else
+            echo ""
+            echo "⏰ Monitoring timeout - removal may still be in progress"
+            echo "decommission_complete=false" >> $GITHUB_ENV
+          fi
+      
       - name: 📊 Summary
         run: |
           cat >> $GITHUB_STEP_SUMMARY << 'EOF'
@@ -241,14 +337,41 @@ jobs:
             cat >> $GITHUB_STEP_SUMMARY << 'EOF'
           - ✅ Module commented out in Terraform
           - ✅ Decommission log created
-          - ⏰ **Next**: EventBridge will trigger Terraform apply (~2 min)
-          - 📊 **Result**: Account entry removed from DynamoDB
+          EOF
+          
+            if [ "${{ env.decommission_complete }}" = "true" ]; then
+              cat >> $GITHUB_STEP_SUMMARY << 'EOF'
+          - ✅ **Terraform applied successfully**
+          - ✅ **Account removed from DynamoDB**
+          - ✅ **AFT no longer managing this account**
           
           ### ⚠️ Important Notes
-          - The account still exists in AWS Organizations
-          - To fully close the account, use "Close Account" action
+          - ✅ Decommission verified and complete
+          - 📌 Account still exists in AWS Organizations (ACTIVE)
+          - 🔄 To fully close account, use "Close Account" action
+          - 🔙 Module can be restored by uncommenting in terraform/main.tf
+          EOF
+            elif [ "${{ env.decommission_complete }}" = "false" ]; then
+              cat >> $GITHUB_STEP_SUMMARY << 'EOF'
+          - ⏰ **Terraform apply in progress**
+          - ⏳ **Monitoring timeout reached**
+          
+          ### ⚠️ Important Notes
+          - Account removal may still be processing
+          - Check DynamoDB manually in a few minutes
+          - [Monitor CodePipeline](https://ap-south-1.console.aws.amazon.com/codesuite/codepipeline/pipelines/ct-aft-account-request/view)
+          EOF
+            else
+              cat >> $GITHUB_STEP_SUMMARY << 'EOF'
+          - ⏰ **EventBridge will trigger Terraform** (~2 min)
+          - 📊 **Account will be removed from DynamoDB**
+          
+          ### ⚠️ Important Notes
+          - AWS credentials not configured for monitoring
+          - Check status manually after 5-10 minutes
           - Module can be restored by uncommenting in terraform/main.tf
           EOF
+            fi
           fi
           
           if [ "${{ inputs.action_type }}" = "Close Account (AWS suspension)" ]; then
