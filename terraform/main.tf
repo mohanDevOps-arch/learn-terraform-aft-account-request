@@ -100,7 +100,7 @@ module "aft_test_01" {
     "Environment" = "Test"
     "ManagedBy"   = "AFT"
     "Purpose"     = "Testing AFT Provisioning"
-    "TestDate"    = "2025-12-05"
+    "TestDate"    = "2025-12-08"
   }
 
   change_management_parameters = {
