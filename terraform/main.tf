@@ -88,3 +88,38 @@ module "automated_test_account" {
 # Test auto-trigger - updated at $(date)
 # Auto-trigger test at Mon Dec  8 11:31:36 IST 2025
 # Webhook test after connection update - 11:56:27
+# Fresh Account Request for Auto-Trigger Test
+# Email: ravish.snkhyn+freshtest1765177475@gmail.com
+# Created: Mon Dec  8 12:34:35 IST 2025
+module "fresh_automated_test" {
+  source = "./modules/aft-account-request"
+
+  control_tower_parameters = {
+    AccountEmail              = "ravish.snkhyn+freshtest1765177475@gmail.com"
+    AccountName               = "FreshAutomatedTest"
+    ManagedOrganizationalUnit = "LearnMck"
+    SSOUserEmail              = "ravish.snkhyn@gmail.com"
+    SSOUserFirstName          = "Ravish"
+    SSOUserLastName           = "Sankhyan"
+  }
+
+  account_tags = {
+    "Environment" = "Test"
+    "ManagedBy"   = "AFT"
+    "RequestedBy" = "ravishmck"
+    "CreatedDate" = "2025-12-08"
+    "AutoTrigger" = "true"
+  }
+
+  change_management_parameters = {
+    change_requested_by = "ravishmck"
+    change_reason       = "Fresh E2E auto-trigger test"
+  }
+
+  custom_fields = {
+    auto_trigger_test = "true"
+    test_type = "fresh_email"
+  }
+
+  account_customizations_name = "sandbox"
+}
