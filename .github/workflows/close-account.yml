@@ -1,0 +1,302 @@
+name: 🗑️ Close/Decommission AWS Account
+
+# Workflow to close/suspend AWS accounts
+on:
+  workflow_dispatch:
+    inputs:
+      account_id:
+        description: '🔢 Account ID to Close'
+        required: true
+        type: string
+      
+      account_email:
+        description: '📧 Account Email (for verification)'
+        required: true
+        type: string
+      
+      action_type:
+        description: '⚙️ Action Type'
+        required: true
+        type: choice
+        options:
+          - Remove from Terraform (soft delete)
+          - Close Account (AWS suspension)
+          - Remove from Organization
+      
+      reason:
+        description: '📝 Reason for Closure'
+        required: true
+        type: string
+      
+      confirmation:
+        description: '⚠️ Type "CONFIRM" to proceed'
+        required: true
+        type: string
+
+jobs:
+  close-account:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: ✋ Verify Confirmation
+        run: |
+          if [ "${{ inputs.confirmation }}" != "CONFIRM" ]; then
+            echo "❌ Confirmation not provided!"
+            echo "You must type 'CONFIRM' to proceed with account closure."
+            exit 1
+          fi
+          echo "✅ Confirmation verified"
+      
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+      
+      - name: 🔧 Configure Git
+        run: |
+          git config user.name "AFT Automation"
+          git config user.email "aft-automation@github.com"
+      
+      - name: 🔍 Find Account Module
+        id: find-module
+        run: |
+          echo "Searching for account: ${{ inputs.account_id }}"
+          echo "Email: ${{ inputs.account_email }}"
+          
+          # Search for the account in main.tf
+          FOUND=$(grep -n "AccountEmail.*=.*\"${{ inputs.account_email }}\"" terraform/main.tf || echo "")
+          
+          if [ -z "$FOUND" ]; then
+            echo "❌ Account not found in Terraform configuration!"
+            echo "Email: ${{ inputs.account_email }}"
+            exit 1
+          fi
+          
+          echo "✅ Account found in Terraform"
+          echo "found=true" >> $GITHUB_OUTPUT
+      
+      - name: 🗑️ Remove from Terraform (if requested)
+        if: inputs.action_type == 'Remove from Terraform (soft delete)'
+        run: |
+          echo "Removing account from Terraform configuration..."
+          
+          # Create backup
+          cp terraform/main.tf terraform/main.tf.backup
+          
+          # Find and comment out the module block for this account
+          # This is safer than deleting - can be uncommented if needed
+          python3 << 'PYTHON_SCRIPT'
+          import re
+          
+          email = "${{ inputs.account_email }}"
+          
+          with open('terraform/main.tf', 'r') as f:
+              content = f.read()
+          
+          # Find the module block containing this email
+          pattern = r'(module\s+"[^"]+"\s+\{[^}]*AccountEmail\s*=\s*"' + re.escape(email) + r'"[^}]*\})'
+          
+          def comment_block(match):
+              block = match.group(1)
+              # Add decommission header
+              commented = f'''
+          # ═══════════════════════════════════════════════════════════════
+          # DECOMMISSIONED: {email}
+          # Reason: ${{ inputs.reason }}
+          # Date: $(date '+%Y-%m-%d')
+          # By: ${{ github.actor }}
+          # ═══════════════════════════════════════════════════════════════
+          # Commented out - Can be restored if needed
+          # {block.replace(chr(10), chr(10) + "# ")}
+          '''
+              return commented
+          
+          new_content = re.sub(pattern, comment_block, content, flags=re.DOTALL)
+          
+          with open('terraform/main.tf', 'w') as f:
+              f.write(new_content)
+          
+          print("✅ Module commented out in Terraform")
+          PYTHON_SCRIPT
+          
+          echo "✅ Account removed from Terraform configuration"
+      
+      - name: 📋 Create Decommission Log
+        run: |
+          mkdir -p decommissioned
+          
+          LOG_FILE="decommissioned/account-${{ inputs.account_id }}.md"
+          
+          cat > "$LOG_FILE" << EOF
+          # Account Decommission Record
+          
+          ## Account Information
+          - **Account ID**: ${{ inputs.account_id }}
+          - **Email**: ${{ inputs.account_email }}
+          - **Action**: ${{ inputs.action_type }}
+          - **Reason**: ${{ inputs.reason }}
+          
+          ## Decommission Details
+          - **Date**: $(date '+%Y-%m-%d %H:%M:%S UTC')
+          - **Requested By**: ${{ github.actor }}
+          - **Workflow Run**: ${{ github.run_id }}
+          
+          ## Actions Taken
+          EOF
+          
+          if [ "${{ inputs.action_type }}" = "Remove from Terraform (soft delete)" ]; then
+            cat >> "$LOG_FILE" << EOF
+          - ✅ Module commented out in terraform/main.tf
+          - ✅ Backup created: terraform/main.tf.backup
+          - ⏰ Next: Wait for Terraform apply to remove from state
+          EOF
+          fi
+          
+          if [ "${{ inputs.action_type }}" = "Close Account (AWS suspension)" ]; then
+            cat >> "$LOG_FILE" << EOF
+          - ⚠️  Manual action required in AWS Console:
+            1. Go to: https://console.aws.amazon.com/organizations/v2/home/accounts
+            2. Select account: ${{ inputs.account_id }}
+            3. Click "Close account"
+            4. Confirm closure
+          - 📝 Account will be suspended for 90 days before permanent deletion
+          EOF
+          fi
+          
+          if [ "${{ inputs.action_type }}" = "Remove from Organization" ]; then
+            cat >> "$LOG_FILE" << EOF
+          - ⚠️  Manual action required in AWS Console:
+            1. Go to: https://console.aws.amazon.com/organizations/v2/home/accounts
+            2. Select account: ${{ inputs.account_id }}
+            3. Click "Remove from organization"
+            4. Confirm removal
+          - 📝 Account will become standalone (not deleted)
+          EOF
+          fi
+          
+          cat >> "$LOG_FILE" << EOF
+          
+          ## Next Steps
+          1. Review this decommission log
+          2. Complete any manual steps listed above
+          3. Verify account status in AWS Organizations
+          4. Update any documentation referencing this account
+          
+          ## Restoration
+          To restore this account:
+          1. Uncomment the module block in terraform/main.tf
+          2. Commit and push changes
+          3. Terraform will recreate the account entry
+          
+          ---
+          **Decommissioned by AFT Automation** | 🔒 Secured by Control Tower
+          EOF
+          
+          echo "✅ Decommission log created: $LOG_FILE"
+      
+      - name: 💾 Commit Changes
+        run: |
+          # Pull latest changes first
+          git pull --rebase origin main || true
+          
+          git add terraform/main.tf decommissioned/
+          git commit -m "🗑️ Decommission Account: ${{ inputs.account_id }}
+
+          📋 Details:
+          • Account ID: ${{ inputs.account_id }}
+          • Email: ${{ inputs.account_email }}
+          • Action: ${{ inputs.action_type }}
+          • Reason: ${{ inputs.reason }}
+          • Requested by: ${{ github.actor }}
+          
+          ⚠️  Review decommissioned/account-${{ inputs.account_id }}.md for next steps"
+          
+          # Push with retry logic
+          for i in {1..3}; do
+            if git push; then
+              echo "✅ Pushed successfully!"
+              break
+            else
+              echo "⚠️  Push failed, pulling and retrying..."
+              git pull --rebase origin main
+            fi
+          done
+      
+      - name: 📊 Summary
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
+          ## 🗑️ Account Decommission Initiated
+          
+          ### 📋 Account Information
+          | Field | Value |
+          |-------|-------|
+          | **Account ID** | ${{ inputs.account_id }} |
+          | **Email** | ${{ inputs.account_email }} |
+          | **Action** | ${{ inputs.action_type }} |
+          | **Reason** | ${{ inputs.reason }} |
+          | **Requested By** | @${{ github.actor }} |
+          
+          ### ✅ Actions Completed
+          EOF
+          
+          if [ "${{ inputs.action_type }}" = "Remove from Terraform (soft delete)" ]; then
+            cat >> $GITHUB_STEP_SUMMARY << 'EOF'
+          - ✅ Module commented out in Terraform
+          - ✅ Decommission log created
+          - ⏰ **Next**: EventBridge will trigger Terraform apply (~2 min)
+          - 📊 **Result**: Account entry removed from DynamoDB
+          
+          ### ⚠️ Important Notes
+          - The account still exists in AWS Organizations
+          - To fully close the account, use "Close Account" action
+          - Module can be restored by uncommenting in terraform/main.tf
+          EOF
+          fi
+          
+          if [ "${{ inputs.action_type }}" = "Close Account (AWS suspension)" ]; then
+            cat >> $GITHUB_STEP_SUMMARY << 'EOF'
+          - ✅ Decommission log created
+          
+          ### ⚠️ Manual Action Required
+          
+          You must complete the closure in AWS Console:
+          
+          1. Go to [AWS Organizations](https://console.aws.amazon.com/organizations/v2/home/accounts)
+          2. Search for account: `${{ inputs.account_id }}`
+          3. Click **"Close account"**
+          4. Confirm the closure
+          
+          **⏰ Timeline:**
+          - Account suspended immediately
+          - 90-day waiting period before permanent deletion
+          - Can be restored during waiting period
+          EOF
+          fi
+          
+          if [ "${{ inputs.action_type }}" = "Remove from Organization" ]; then
+            cat >> $GITHUB_STEP_SUMMARY << 'EOF'
+          - ✅ Decommission log created
+          
+          ### ⚠️ Manual Action Required
+          
+          You must complete the removal in AWS Console:
+          
+          1. Go to [AWS Organizations](https://console.aws.amazon.com/organizations/v2/home/accounts)
+          2. Search for account: `${{ inputs.account_id }}`
+          3. Click **"Remove from organization"**
+          4. Confirm the removal
+          
+          **📝 Note:**
+          - Account becomes standalone (not deleted)
+          - Can be re-invited to organization
+          - Billing transfers to removed account
+          EOF
+          fi
+          
+          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
+          
+          ### 📄 Decommission Log
+          Review the full log at: `decommissioned/account-${{ inputs.account_id }}.md`
+          
+          ---
+          🤖 **Automated by AFT** | 🔒 **Secured by Control Tower**
+          EOF
+
