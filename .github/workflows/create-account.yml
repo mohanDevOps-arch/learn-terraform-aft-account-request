@@ -1,0 +1,145 @@
+name: 🚀 Create AWS Account Request
+
+# Simple workflow - runs directly in account-request repository
+on:
+  workflow_dispatch:
+    inputs:
+      account_name:
+        description: '📝 Account Name'
+        required: true
+        type: string
+      
+      account_email:
+        description: '📧 Unique Account Email'
+        required: true
+        type: string
+      
+      organizational_unit:
+        description: '🏢 Organizational Unit'
+        required: true
+        type: choice
+        options:
+          - LearnMck
+          - AFTLearn
+      
+      environment:
+        description: '🌍 Environment'
+        required: true
+        type: choice
+        options:
+          - Development
+          - Testing
+          - Staging
+          - Production
+
+jobs:
+  create-request:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+      
+      - name: 🔧 Configure Git
+        run: |
+          git config user.name "AFT Automation"
+          git config user.email "aft-automation@github.com"
+      
+      - name: 📝 Create Account Request
+        run: |
+          # Generate safe module name
+          MODULE_NAME=$(echo "${{ inputs.account_name }}" | tr '[:upper:]' '[:lower:]' | tr ' ' '_' | tr -cd '[:alnum:]_')
+          TIMESTAMP=$(date +%s)
+          
+          # Append to main.tf
+          cat >> terraform/main.tf << 'EOF'
+          
+          # ═══════════════════════════════════════════════════════════════
+          # Account: ${{ inputs.account_name }}
+          # Created: $(date '+%Y-%m-%d %H:%M:%S UTC')
+          # Requested by: ${{ github.actor }}
+          # ═══════════════════════════════════════════════════════════════
+          module "${{ inputs.account_name | lower | replace(' ', '_') }}_TIMESTAMP" {
+            source = "./modules/aft-account-request"
+          
+            control_tower_parameters = {
+              AccountEmail              = "${{ inputs.account_email }}"
+              AccountName               = "${{ inputs.account_name }}"
+              ManagedOrganizationalUnit = "${{ inputs.organizational_unit }}"
+              SSOUserEmail              = "ravish.snkhyn@gmail.com"
+              SSOUserFirstName          = "Ravish"
+              SSOUserLastName           = "Sankhyan"
+            }
+          
+            account_tags = {
+              "Environment"  = "${{ inputs.environment }}"
+              "ManagedBy"    = "AFT"
+              "RequestedBy"  = "${{ github.actor }}"
+              "CreatedDate"  = "$(date +%Y-%m-%d)"
+              "CreatedVia"   = "GitHub-Actions"
+            }
+          
+            change_management_parameters = {
+              change_requested_by = "${{ github.actor }}"
+              change_reason       = "Account request via GitHub Actions"
+            }
+          
+            custom_fields = {
+              workflow_run_id = "${{ github.run_id }}"
+              github_actor    = "${{ github.actor }}"
+            }
+          
+            account_customizations_name = "sandbox"
+          }
+          EOF
+          
+          echo "✅ Account request created!"
+      
+      - name: 💾 Commit & Push
+        run: |
+          git add terraform/main.tf
+          git commit -m "🚀 New Account: ${{ inputs.account_name }}
+
+          📋 Details:
+          • Name: ${{ inputs.account_name }}
+          • Email: ${{ inputs.account_email }}
+          • OU: ${{ inputs.organizational_unit }}
+          • Environment: ${{ inputs.environment }}
+          • Requested by: ${{ github.actor }}
+          
+          ⚙️ Will be auto-processed by AFT in ~2 minutes"
+          
+          git push
+          
+          echo "✅ Pushed successfully!"
+      
+      - name: 🎉 Success Summary
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
+          ## 🎉 Account Request Created!
+          
+          ### 📋 Account Information
+          | Field | Value |
+          |-------|-------|
+          | **Name** | ${{ inputs.account_name }} |
+          | **Email** | ${{ inputs.account_email }} |
+          | **OU** | ${{ inputs.organizational_unit }} |
+          | **Environment** | ${{ inputs.environment }} |
+          | **Requested By** | @${{ github.actor }} |
+          
+          ### ⏰ What Happens Next?
+          
+          1. ⏱️ **2 minutes** - EventBridge triggers CodePipeline
+          2. 🔧 **5 minutes** - Terraform creates DynamoDB entry
+          3. 📦 **10 minutes** - Lambda processes request
+          4. 🏗️ **15 minutes** - Service Catalog provisions account
+          5. ✅ **20 minutes** - Account appears in Organizations
+          
+          ### 📊 Monitor Progress
+          - [CodePipeline](https://ap-south-1.console.aws.amazon.com/codesuite/codepipeline/pipelines/ct-aft-account-request/view)
+          - [AWS Organizations](https://console.aws.amazon.com/organizations/v2/home/accounts)
+          
+          ---
+          🤖 Automated by AFT | 🔒 Secured by Control Tower
+          EOF
+
