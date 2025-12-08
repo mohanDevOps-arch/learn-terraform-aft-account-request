@@ -47,16 +47,16 @@ module "learn_aft_test" {
 # GitHub Actions Auto-Generated Requests Below
 # ============================================
 
-# Account Request: FreshAccount
-# Created: 2025-12-08 11:20:00 UTC
+# Account Request: AutomatedTest
+# Created: 2025-12-08 11:40:00 UTC
 # Requested by: ravishmck
-# Testing full end-to-end AFT automation
-module "fresh_account" {
+# Testing complete end-to-end AFT automation with auto-trigger
+module "automated_test_account" {
   source = "./modules/aft-account-request"
 
   control_tower_parameters = {
-    AccountEmail              = "ravish.snkhyn+fresh1208@gmail.com"
-    AccountName               = "FreshAccount"
+    AccountEmail              = "ravish.snkhyn+autotest1140@gmail.com"
+    AccountName               = "AutomatedTest"
     ManagedOrganizationalUnit = "LearnMck"
     SSOUserEmail              = "ravish.snkhyn@gmail.com"
     SSOUserFirstName          = "Ravish"
@@ -68,17 +68,18 @@ module "fresh_account" {
     "ManagedBy"   = "AFT"
     "RequestedBy" = "ravishmck"
     "CreatedDate" = "2025-12-08"
-    "Purpose"     = "Full E2E AFT Test"
+    "Purpose"     = "End-to-End Auto-Trigger Test"
+    "TestType"    = "Complete-Automation"
   }
 
   change_management_parameters = {
     change_requested_by = "ravishmck"
-    change_reason       = "Testing complete AFT automation flow"
+    change_reason       = "Final E2E test: GitHub → Pipeline → DynamoDB → SQS → Lambda → Service Catalog → Organizations"
   }
 
   custom_fields = {
-    test_type = "full_automation"
-    created_manually = "true"
+    test_type = "full_e2e_automation"
+    auto_trigger_test = "true"
   }
 
   account_customizations_name = "sandbox"
