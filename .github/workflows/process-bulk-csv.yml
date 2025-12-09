@@ -99,11 +99,41 @@ jobs:
             
             COUNTER=$((COUNTER + 1))
             
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "[$COUNTER] Validating: $NAME ($EMAIL)"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            
+            # Validate email format
+            if [[ ! "$EMAIL" =~ "@" ]]; then
+              echo "❌ ERROR: Email must contain @ symbol"
+              echo "   Row $COUNTER: $EMAIL"
+              exit 1
+            fi
+            
+            if [[ ! "$EMAIL" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+              echo "❌ ERROR: Invalid email format"
+              echo "   Row $COUNTER: $EMAIL"
+              echo "   Valid format: user@domain.com or user+tag@domain.com"
+              exit 1
+            fi
+            
+            # Check if + comes AFTER @ (common mistake)
+            if [[ "$EMAIL" =~ @.*\+ ]]; then
+              echo "❌ ERROR: Plus sign (+) must come BEFORE @ symbol, not after"
+              echo "   Row $COUNTER: $EMAIL"
+              echo "   Example of WRONG: user@domain+tag.com"
+              echo "   Example of RIGHT: user+tag@domain.com"
+              exit 1
+            fi
+            
+            echo "✅ Email valid: $EMAIL"
+            
             # Generate safe module name
             MODULE_NAME=$(echo "$NAME" | tr '[:upper:]' '[:lower:]' | tr ' ' '_' | tr -cd '[:alnum:]_')
             MODULE_NAME="${MODULE_NAME}_${TIMESTAMP}_${COUNTER}"
             
-            echo "[$COUNTER] $NAME ($EMAIL)"
+            echo "📝 Creating module: $MODULE_NAME"
             
             # Append to main.tf
             cat >> terraform/main.tf << EOF

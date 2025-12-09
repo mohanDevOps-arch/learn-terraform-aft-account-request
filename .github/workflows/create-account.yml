@@ -50,6 +50,48 @@ jobs:
           git config user.name "AFT Automation"
           git config user.email "aft-automation@github.com"
       
+      - name: ✅ Validate Email Format
+        run: |
+          EMAIL="${{ inputs.account_email }}"
+          
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Validating email format: $EMAIL"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          
+          # Check if email contains @ symbol
+          if [[ ! "$EMAIL" =~ "@" ]]; then
+            echo "❌ ERROR: Email must contain @ symbol"
+            echo "   Invalid: $EMAIL"
+            exit 1
+          fi
+          
+          # Check if email has proper format (basic validation)
+          if [[ ! "$EMAIL" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+            echo "❌ ERROR: Invalid email format"
+            echo "   Invalid: $EMAIL"
+            echo "   Valid format: user@domain.com or user+tag@domain.com"
+            exit 1
+          fi
+          
+          # Check if + comes AFTER @ (common mistake)
+          if [[ "$EMAIL" =~ @.*\+ ]]; then
+            echo "❌ ERROR: Plus sign (+) must come BEFORE @ symbol, not after"
+            echo "   Invalid: $EMAIL"
+            echo "   Example of WRONG format: user@domain+tag.com"
+            echo "   Example of RIGHT format: user+tag@domain.com"
+            exit 1
+          fi
+          
+          # Check if email ends with common domain patterns
+          if [[ ! "$EMAIL" =~ \.(com|org|net|edu|gov|io|co)$ ]]; then
+            echo "⚠️  WARNING: Email doesn't end with common domain extension"
+            echo "   Email: $EMAIL"
+            echo "   This might be valid, but please double-check"
+          fi
+          
+          echo "✅ Email format is valid: $EMAIL"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      
       - name: 📝 Create Account Request
         run: |
           # Generate safe module name
