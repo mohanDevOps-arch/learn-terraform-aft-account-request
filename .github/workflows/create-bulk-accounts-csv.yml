@@ -1,0 +1,201 @@
+name: 🚀 Create Multiple Accounts (CSV Format)
+
+# Create multiple AWS accounts using simple CSV format
+on:
+  workflow_dispatch:
+    inputs:
+      accounts_csv:
+        description: '📋 Accounts CSV (Name,Email,OU,Environment - one per line)'
+        required: true
+        type: string
+        default: |
+          TestAccount1,user+test1@example.com,LearnMck,Development
+          TestAccount2,user+test2@example.com,Sandbox,Testing
+          TestAccount3,user+test3@example.com,Batch14,Development
+
+jobs:
+  create-bulk-accounts:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+      
+      - name: 🔧 Configure Git
+        run: |
+          git config user.name "AFT Bulk Automation"
+          git config user.email "aft-bulk@github.com"
+      
+      - name: 📝 Parse CSV and Create Requests
+        id: create
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🚀 BULK ACCOUNT CREATION (CSV FORMAT)"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          
+          TIMESTAMP=$(date +%s)
+          CSV_DATA='${{ inputs.accounts_csv }}'
+          
+          # Count non-empty lines
+          ACCOUNT_COUNT=$(echo "$CSV_DATA" | grep -v '^[[:space:]]*$' | wc -l | tr -d ' ')
+          
+          echo "📊 Found $ACCOUNT_COUNT accounts to create"
+          echo ""
+          
+          COUNTER=0
+          ACCOUNT_NAMES=""
+          
+          # Process each line
+          while IFS=',' read -r NAME EMAIL OU ENV || [ -n "$NAME" ]; do
+            # Skip empty lines
+            [ -z "$NAME" ] && continue
+            
+            # Trim whitespace
+            NAME=$(echo "$NAME" | xargs)
+            EMAIL=$(echo "$EMAIL" | xargs)
+            OU=$(echo "$OU" | xargs)
+            ENV=$(echo "$ENV" | xargs)
+            
+            COUNTER=$((COUNTER + 1))
+            
+            # Generate safe module name
+            MODULE_NAME=$(echo "$NAME" | tr '[:upper:]' '[:lower:]' | tr ' ' '_' | tr -cd '[:alnum:]_')
+            MODULE_NAME="${MODULE_NAME}_${TIMESTAMP}_${COUNTER}"
+            
+            echo "[$COUNTER/$ACCOUNT_COUNT] Creating: $NAME"
+            echo "   📧 Email: $EMAIL"
+            echo "   🏢 OU: $OU"
+            echo "   🌍 Environment: $ENV"
+            
+            # Append to main.tf
+            cat >> terraform/main.tf << EOF
+
+# ═══════════════════════════════════════════════════════════════
+# Bulk CSV Request #${COUNTER}: $NAME
+# Created: $(date '+%Y-%m-%d %H:%M:%S UTC')
+# Requested by: ${{ github.actor }}
+# ═══════════════════════════════════════════════════════════════
+module "${MODULE_NAME}" {
+  source = "./modules/aft-account-request"
+
+  control_tower_parameters = {
+    AccountEmail              = "$EMAIL"
+    AccountName               = "$NAME"
+    ManagedOrganizationalUnit = "$OU"
+    SSOUserEmail              = "ravish.snkhyn@gmail.com"
+    SSOUserFirstName          = "Ravish"
+    SSOUserLastName           = "Sankhyan"
+  }
+
+  account_tags = {
+    "Environment"  = "$ENV"
+    "ManagedBy"    = "AFT"
+    "RequestedBy"  = "${{ github.actor }}"
+    "CreatedDate"  = "$(date +%Y-%m-%d)"
+    "CreatedVia"   = "GitHub-Actions-Bulk-CSV"
+    "BatchNumber"  = "$TIMESTAMP"
+    "BatchPosition" = "$COUNTER"
+  }
+
+  change_management_parameters = {
+    change_requested_by = "${{ github.actor }}"
+    change_reason       = "Bulk account creation (CSV) via GitHub Actions"
+  }
+
+  custom_fields = {
+    workflow_run_id = "${{ github.run_id }}"
+    github_actor    = "${{ github.actor }}"
+    batch_timestamp = "$TIMESTAMP"
+    batch_position  = "$COUNTER"
+    batch_total     = "$ACCOUNT_COUNT"
+  }
+
+  account_customizations_name = "sandbox"
+}
+EOF
+            
+            # Store account name
+            ACCOUNT_NAMES="${ACCOUNT_NAMES}- $NAME ($EMAIL)\n"
+            
+            echo "   ✅ Module created"
+            echo ""
+          done <<< "$CSV_DATA"
+          
+          # Save for summary
+          echo "account_count=$COUNTER" >> $GITHUB_OUTPUT
+          echo -e "account_list<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$ACCOUNT_NAMES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "✅ Created $COUNTER account requests!"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      
+      - name: 💾 Commit & Push
+        run: |
+          # Pull latest changes
+          git pull --rebase origin main || true
+          
+          git add terraform/main.tf
+          
+          git commit -m "🚀 Bulk CSV Account Creation: ${{ steps.create.outputs.account_count }} accounts
+
+📋 Accounts:
+${{ steps.create.outputs.account_list }}
+
+🔧 Requested by: ${{ github.actor }}
+⏰ Timestamp: $(date '+%Y-%m-%d %H:%M:%S')
+🎯 Batch ID: $(date +%s)
+
+⚙️ AFT will process these in ~2 minutes"
+          
+          # Push with retry
+          for i in {1..5}; do
+            if git push; then
+              echo "✅ Pushed successfully!"
+              break
+            else
+              echo "⚠️  Retry $i/5..."
+              git pull --rebase origin main
+              sleep 2
+            fi
+          done
+      
+      - name: 📊 Create Summary
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
+          ## 🎉 Bulk Account Creation Complete!
+          
+          ### 📋 Batch Summary
+          | Metric | Value |
+          |--------|-------|
+          | **Total Accounts** | ${{ steps.create.outputs.account_count }} |
+          | **Requested By** | @${{ github.actor }} |
+          | **Format** | CSV |
+          | **Status** | ✅ Submitted |
+          
+          ### 📝 Accounts Requested
+          ${{ steps.create.outputs.account_list }}
+          
+          ### ⏱️ Timeline
+          - **Now**: Requests pushed to GitHub ✅
+          - **+2 min**: CodePipeline triggered
+          - **+5 min**: DynamoDB entries created
+          - **+15-20 min**: Accounts ACTIVE in Organizations
+          
+          ### 💰 Cost Control
+          - ✅ $200/month budget per account
+          - ✅ Email alerts at 80%, 90%, 100%
+          - ✅ SCP restrictions (if applied to OU)
+          
+          ### 🔗 Monitor
+          - [CodePipeline](https://ap-south-1.console.aws.amazon.com/codesuite/codepipeline/pipelines/ct-aft-account-request/view)
+          - [Organizations](https://console.aws.amazon.com/organizations/v2/home/accounts)
+          - [DynamoDB](https://ap-south-1.console.aws.amazon.com/dynamodbv2/home?region=ap-south-1#table?name=aft-request)
+          
+          ---
+          🤖 **Automated by AFT** | 🔒 **Secured by Control Tower** | 💰 **Budget: $200/account**
+          EOF
+
+

@@ -1,0 +1,211 @@
+name: 🚀 Create Multiple AWS Accounts (Bulk)
+
+# Create multiple AWS accounts in a single workflow run
+on:
+  workflow_dispatch:
+    inputs:
+      accounts_json:
+        description: '📋 Accounts JSON (see example below)'
+        required: true
+        type: string
+        default: |
+          [
+            {
+              "name": "TestAccount1",
+              "email": "user+test1@example.com",
+              "ou": "LearnMck",
+              "environment": "Development"
+            },
+            {
+              "name": "TestAccount2", 
+              "email": "user+test2@example.com",
+              "ou": "Sandbox",
+              "environment": "Testing"
+            }
+          ]
+
+jobs:
+  validate-and-create:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+      
+      - name: 🔧 Configure Git
+        run: |
+          git config user.name "AFT Bulk Automation"
+          git config user.email "aft-bulk@github.com"
+      
+      - name: ✅ Validate JSON Input
+        id: validate
+        run: |
+          echo "Validating JSON input..."
+          echo '${{ inputs.accounts_json }}' | jq empty
+          
+          # Count accounts
+          ACCOUNT_COUNT=$(echo '${{ inputs.accounts_json }}' | jq '. | length')
+          echo "account_count=$ACCOUNT_COUNT" >> $GITHUB_OUTPUT
+          echo "✅ Found $ACCOUNT_COUNT accounts to create"
+      
+      - name: 📝 Create Account Requests
+        id: create_requests
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🚀 CREATING BULK ACCOUNT REQUESTS"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          
+          TIMESTAMP=$(date +%s)
+          ACCOUNTS='${{ inputs.accounts_json }}'
+          ACCOUNT_COUNT=$(echo "$ACCOUNTS" | jq '. | length')
+          
+          # Store account details for summary
+          ACCOUNT_NAMES=""
+          
+          echo "Processing $ACCOUNT_COUNT accounts..."
+          echo ""
+          
+          for i in $(seq 0 $((ACCOUNT_COUNT - 1))); do
+            # Extract account details
+            ACCOUNT=$(echo "$ACCOUNTS" | jq -r ".[$i]")
+            NAME=$(echo "$ACCOUNT" | jq -r '.name')
+            EMAIL=$(echo "$ACCOUNT" | jq -r '.email')
+            OU=$(echo "$ACCOUNT" | jq -r '.ou')
+            ENV=$(echo "$ACCOUNT" | jq -r '.environment')
+            
+            # Generate safe module name
+            MODULE_NAME=$(echo "$NAME" | tr '[:upper:]' '[:lower:]' | tr ' ' '_' | tr -cd '[:alnum:]_')
+            MODULE_NAME="${MODULE_NAME}_${TIMESTAMP}_$i"
+            
+            echo "[$((i+1))/$ACCOUNT_COUNT] Creating: $NAME"
+            echo "   Email: $EMAIL"
+            echo "   OU: $OU"
+            echo "   Environment: $ENV"
+            
+            # Append to main.tf
+            cat >> terraform/main.tf << EOF
+
+# ═══════════════════════════════════════════════════════════════
+# Bulk Request #$((i+1)): $NAME
+# Created: $(date '+%Y-%m-%d %H:%M:%S UTC')
+# Requested by: ${{ github.actor }}
+# ═══════════════════════════════════════════════════════════════
+module "${MODULE_NAME}" {
+  source = "./modules/aft-account-request"
+
+  control_tower_parameters = {
+    AccountEmail              = "$EMAIL"
+    AccountName               = "$NAME"
+    ManagedOrganizationalUnit = "$OU"
+    SSOUserEmail              = "ravish.snkhyn@gmail.com"
+    SSOUserFirstName          = "Ravish"
+    SSOUserLastName           = "Sankhyan"
+  }
+
+  account_tags = {
+    "Environment"  = "$ENV"
+    "ManagedBy"    = "AFT"
+    "RequestedBy"  = "${{ github.actor }}"
+    "CreatedDate"  = "$(date +%Y-%m-%d)"
+    "CreatedVia"   = "GitHub-Actions-Bulk"
+    "BatchNumber"  = "$TIMESTAMP"
+  }
+
+  change_management_parameters = {
+    change_requested_by = "${{ github.actor }}"
+    change_reason       = "Bulk account creation via GitHub Actions"
+  }
+
+  custom_fields = {
+    workflow_run_id = "${{ github.run_id }}"
+    github_actor    = "${{ github.actor }}"
+    batch_timestamp = "$TIMESTAMP"
+    batch_position  = "$((i+1))"
+  }
+
+  account_customizations_name = "sandbox"
+}
+EOF
+            
+            # Store account name for summary
+            ACCOUNT_NAMES="${ACCOUNT_NAMES}${NAME}, "
+            
+            echo "   ✅ Module created"
+            echo ""
+          done
+          
+          # Save for summary
+          echo "account_names=${ACCOUNT_NAMES%%, }" >> $GITHUB_OUTPUT
+          
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "✅ All $ACCOUNT_COUNT account requests created!"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      
+      - name: 💾 Commit & Push
+        run: |
+          echo "Committing changes..."
+          
+          # Pull latest changes first
+          git pull --rebase origin main || true
+          
+          git add terraform/main.tf
+          
+          ACCOUNT_COUNT=${{ steps.validate.outputs.account_count }}
+          
+          git commit -m "🚀 Bulk Account Creation: $ACCOUNT_COUNT accounts
+
+📋 Accounts Created:
+${{ steps.create_requests.outputs.account_names }}
+
+🔧 Details:
+• Count: $ACCOUNT_COUNT accounts
+• Requested by: ${{ github.actor }}
+• Batch ID: $(date +%s)
+
+⚙️ Will be auto-processed by AFT in ~2 minutes"
+          
+          # Push with retry logic
+          echo "Pushing to GitHub..."
+          for i in {1..5}; do
+            if git push; then
+              echo "✅ Pushed successfully!"
+              break
+            else
+              echo "⚠️  Push failed (attempt $i/5), pulling and retrying..."
+              git pull --rebase origin main
+              sleep 2
+            fi
+          done
+      
+      - name: 📊 Summary
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
+          ## 🎉 Bulk Account Request Processed!
+          
+          ### 📋 Batch Information
+          | Field | Value |
+          |-------|-------|
+          | **Total Accounts** | ${{ steps.validate.outputs.account_count }} |
+          | **Requested By** | @${{ github.actor }} |
+          | **Status** | ✅ Pushed to GitHub |
+          
+          ### 📝 Accounts Created
+          ${{ steps.create_requests.outputs.account_names }}
+          
+          ### ⏱️ Next Steps
+          - ⏰ AFT Pipeline will trigger in ~2 minutes
+          - 📊 Accounts will be created in ~15-20 minutes each
+          - 📧 Budget alerts ($200/month) will be configured automatically
+          - 🔐 SSO access will be available once accounts are ACTIVE
+          
+          ### 🔍 Monitor Progress
+          - [CodePipeline](https://ap-south-1.console.aws.amazon.com/codesuite/codepipeline/pipelines/ct-aft-account-request/view)
+          - [AWS Organizations](https://console.aws.amazon.com/organizations/v2/home/accounts)
+          - [DynamoDB Table](https://ap-south-1.console.aws.amazon.com/dynamodbv2/home?region=ap-south-1#table?name=aft-request)
+          
+          ---
+          🤖 **Automated by AFT** | 🔒 **Secured by Control Tower** | 💰 **Budget Protected ($200/account)**
+          EOF
+
+
