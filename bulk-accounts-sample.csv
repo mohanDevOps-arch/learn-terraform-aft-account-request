@@ -1,60 +1,11 @@
 AccountName,AccountEmail,OrganizationalUnit,Environment
-# ═══════════════════════════════════════════════════════════════
-# SAMPLE: Student Batch Creation (20 students for Batch 14)
-# ═══════════════════════════════════════════════════════════════
-Batch14Student01,student01+batch14@training.com,Batch14,Development
-Batch14Student02,student02+batch14@training.com,Batch14,Development
-Batch14Student03,student03+batch14@training.com,Batch14,Development
-Batch14Student04,student04+batch14@training.com,Batch14,Development
-Batch14Student05,student05+batch14@training.com,Batch14,Development
-Batch14Student06,student06+batch14@training.com,Batch14,Development
-Batch14Student07,student07+batch14@training.com,Batch14,Development
-Batch14Student08,student08+batch14@training.com,Batch14,Development
-Batch14Student09,student09+batch14@training.com,Batch14,Development
-Batch14Student10,student10+batch14@training.com,Batch14,Development
-
-# ═══════════════════════════════════════════════════════════════
-# SAMPLE: Multi-Environment Project Setup
-# ═══════════════════════════════════════════════════════════════
-ProjectX-Dev,projectx+dev@company.com,Sandbox,Development
-ProjectX-Test,projectx+test@company.com,Sandbox,Testing
-ProjectX-Staging,projectx+staging@company.com,LearnMck,Staging
-ProjectX-Production,projectx+prod@company.com,LearnMck,Production
-
-# ═══════════════════════════════════════════════════════════════
-# SAMPLE: Team Sandbox Accounts
-# ═══════════════════════════════════════════════════════════════
-Ravish-Sandbox,ravish+sandbox@company.com,Sandbox,Development
-John-Sandbox,john+sandbox@company.com,Sandbox,Development
-Sarah-Sandbox,sarah+sandbox@company.com,Sandbox,Development
-
-# ═══════════════════════════════════════════════════════════════
-# SAMPLE: Lab Environment
-# ═══════════════════════════════════════════════════════════════
-Lab-Security-Testing,lab+security@company.com,AFT-Lab-Rajesh,Development
-Lab-Performance-Test,lab+performance@company.com,AFT-Lab-Rajesh,Testing
-
-# ═══════════════════════════════════════════════════════════════
-# INSTRUCTIONS:
-# ═══════════════════════════════════════════════════════════════
-# 1. Copy this file to bulk-accounts.csv (or edit bulk-accounts.csv directly)
-# 2. Remove the # from the accounts you want to create
-# 3. Update emails to be unique (use + aliases: user+test1@gmail.com)
-# 4. Commit and push to GitHub
-# 5. Workflow will automatically process the CSV!
-#
-# OR manually trigger:
-# 1. Edit bulk-accounts.csv with your accounts (remove #)
-# 2. Go to: Actions → Process Bulk Accounts CSV
-# 3. Click "Run workflow"
-# 4. Done!
-#
-# Available OUs: LearnMck, Sandbox, Batch14, Batch15, AFT-Lab-Rajesh, Security
-# Available Environments: Development, Testing, Staging, Production
-#
-# Each account automatically gets:
-# ✅ $200/month budget with email alerts
-# ✅ SSO access configured
-# ✅ Control Tower baseline applied
-# ═══════════════════════════════════════════════════════════════
-
+Student01,student01+batch14@example.com,Batch14,Development
+Student02,student02+batch14@example.com,Batch14,Development
+Student03,student03+batch14@example.com,Batch14,Development
+Student04,student04+batch14@example.com,Batch14,Development
+Student05,student05+batch14@example.com,Batch14,Development
+Batch15Student01,student01+batch15@example.com,Batch15,Development
+Batch15Student02,student02+batch15@example.com,Batch15,Development
+Batch15Student03,student03+batch15@example.com,Batch15,Development
+SandboxTest01,test01+sandbox@example.com,Sandbox,Development
+SandboxTest02,test02+sandbox@example.com,Sandbox,Development

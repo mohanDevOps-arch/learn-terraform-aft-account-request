@@ -1,11 +1,21 @@
-name: 🚀 Process Bulk Accounts CSV
+name: 🚀 Bulk Account Creation (CSV Upload)
 
 # Automatically processes bulk-accounts.csv when it's updated
+# OR paste CSV content when running manually
 on:
   push:
     paths:
       - 'bulk-accounts.csv'
   workflow_dispatch:
+    inputs:
+      csv_content:
+        description: '📋 Paste CSV Content (AccountName,Email,OU,Environment) OR leave empty to upload bulk-accounts.csv file instead'
+        required: false
+        type: string
+        default: |
+          AccountName,AccountEmail,OrganizationalUnit,Environment
+          Student01,student01@example.com,Batch14,Development
+          Student02,student02@example.com,Batch14,Development
 
 jobs:
   process-csv:
@@ -24,16 +34,23 @@ jobs:
         id: read_csv
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "📊 PROCESSING BULK ACCOUNTS CSV FILE"
+          echo "📊 PROCESSING BULK ACCOUNTS CSV"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo ""
           
-          if [ ! -f bulk-accounts.csv ]; then
-            echo "❌ Error: bulk-accounts.csv file not found!"
-            exit 1
+          # Check if CSV content was provided via workflow input
+          if [ -n "${{ github.event.inputs.csv_content }}" ]; then
+            echo "📤 Using CSV content from workflow input"
+            echo "${{ github.event.inputs.csv_content }}" > bulk-accounts.csv
+            echo "✅ CSV content saved to bulk-accounts.csv"
+          else
+            echo "📁 Using existing bulk-accounts.csv file"
+            if [ ! -f bulk-accounts.csv ]; then
+              echo "❌ Error: bulk-accounts.csv file not found!"
+              exit 1
+            fi
           fi
           
-          echo "📁 File found: bulk-accounts.csv"
           echo ""
           
           # Count valid entries (skip header and comments)
@@ -44,7 +61,7 @@ jobs:
           
           if [ "$VALID_ENTRIES" -eq 0 ]; then
             echo "⚠️  No accounts to process (all lines are comments or header)"
-            echo "   Edit bulk-accounts.csv and remove # from account lines"
+            echo "   Edit bulk-accounts.csv and add account entries"
             exit 0
           fi
           
