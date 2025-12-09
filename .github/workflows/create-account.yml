@@ -251,16 +251,32 @@ jobs:
               echo "   ⏳ Entry not yet created"
             fi
             
-            # Check 3: AWS Organizations
+            # Check 3: AWS Organizations (needs Management account credentials)
             echo ""
             echo "3️⃣ Checking AWS Organizations..."
+            
+            # Temporarily use Management account credentials (from GitHub secrets)
+            # Organizations is only accessible from Management account, not AFT Management
+            TEMP_ACCESS_KEY=$AWS_ACCESS_KEY_ID
+            TEMP_SECRET_KEY=$AWS_SECRET_ACCESS_KEY
+            TEMP_SESSION_TOKEN=$AWS_SESSION_TOKEN
+            
+            export AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID }}"
+            export AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+            unset AWS_SESSION_TOKEN
+            
             ORG_ACCOUNT=$(aws organizations list-accounts \
               --query "Accounts[?Email=='$ACCOUNT_EMAIL'].{Id:Id,Status:Status}" \
               --output json 2>/dev/null || echo "[]")
             
+            # Restore AFT Management account credentials
+            export AWS_ACCESS_KEY_ID=$TEMP_ACCESS_KEY
+            export AWS_SECRET_ACCESS_KEY=$TEMP_SECRET_KEY
+            export AWS_SESSION_TOKEN=$TEMP_SESSION_TOKEN
+            
             if [ "$ORG_ACCOUNT" != "[]" ] && [ "$ORG_ACCOUNT" != "" ]; then
-              ACCOUNT_ID=$(echo "$ORG_ACCOUNT" | jq -r '.[0].Id')
-              ACCOUNT_STATUS=$(echo "$ORG_ACCOUNT" | jq -r '.[0].Status')
+              ACCOUNT_ID=$(echo "$ORG_ACCOUNT" | python3 -c "import sys, json; print(json.load(sys.stdin)[0]['Id'])" 2>/dev/null || echo "")
+              ACCOUNT_STATUS=$(echo "$ORG_ACCOUNT" | python3 -c "import sys, json; print(json.load(sys.stdin)[0]['Status'])" 2>/dev/null || echo "")
               
               echo "   ✅ Account found!"
               echo "   📋 ID: $ACCOUNT_ID"
