@@ -758,7 +758,7 @@ module "defaultstudent_1765269493" {
   source = "./modules/aft-account-request"
 
   control_tower_parameters = {
-    AccountEmail              = "ravish.snkhyn@gmail+0129837465.com"
+    AccountEmail              = "ravish.snkhyn+0129837465@gmail.com"
     AccountName               = "defaultstudent"
     ManagedOrganizationalUnit = "Batch14"
     SSOUserEmail              = "ravish.snkhyn@gmail.com"
