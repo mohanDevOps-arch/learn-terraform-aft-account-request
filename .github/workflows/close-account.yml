@@ -264,16 +264,22 @@ jobs:
             --duration-seconds 3600 2>&1)
           
           if [ $? -ne 0 ]; then
-            echo "❌ Failed to assume role to AFT Management account"
+            echo "⚠️  Failed to assume role to AFT Management account"
             echo "$ROLE_OUTPUT"
+            echo ""
+            echo "✅ Account removal requested successfully"
+            echo "⚠️  Automated monitoring unavailable (assume role failed)"
+            echo ""
+            echo "💡 Check status manually in CodePipeline and DynamoDB"
+            echo ""
             echo "decommission_complete=unknown" >> $GITHUB_ENV
             exit 0
           fi
           
-          # Extract and export temporary credentials
-          export AWS_ACCESS_KEY_ID=$(echo "$ROLE_OUTPUT" | jq -r '.Credentials.AccessKeyId')
-          export AWS_SECRET_ACCESS_KEY=$(echo "$ROLE_OUTPUT" | jq -r '.Credentials.SecretAccessKey')
-          export AWS_SESSION_TOKEN=$(echo "$ROLE_OUTPUT" | jq -r '.Credentials.SessionToken')
+          # Extract and export temporary credentials (using Python instead of jq)
+          export AWS_ACCESS_KEY_ID=$(echo "$ROLE_OUTPUT" | python3 -c "import sys, json; print(json.load(sys.stdin)['Credentials']['AccessKeyId'])")
+          export AWS_SECRET_ACCESS_KEY=$(echo "$ROLE_OUTPUT" | python3 -c "import sys, json; print(json.load(sys.stdin)['Credentials']['SecretAccessKey'])")
+          export AWS_SESSION_TOKEN=$(echo "$ROLE_OUTPUT" | python3 -c "import sys, json; print(json.load(sys.stdin)['Credentials']['SessionToken'])")
           
           echo "✅ Successfully assumed role in AFT Management account"
           echo ""
