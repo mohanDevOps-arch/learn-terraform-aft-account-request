@@ -72,50 +72,50 @@ jobs:
             
             # Append to main.tf
             cat >> terraform/main.tf << EOF
-
-# ═══════════════════════════════════════════════════════════════
-# Bulk CSV Request #${COUNTER}: $NAME
-# Created: $(date '+%Y-%m-%d %H:%M:%S UTC')
-# Requested by: ${GITHUB_ACTOR}
-# ═══════════════════════════════════════════════════════════════
-module "${MODULE_NAME}" {
-  source = "./modules/aft-account-request"
-
-  control_tower_parameters = {
-    AccountEmail              = "$EMAIL"
-    AccountName               = "$NAME"
-    ManagedOrganizationalUnit = "$OU"
-    SSOUserEmail              = "ravish.snkhyn@gmail.com"
-    SSOUserFirstName          = "Ravish"
-    SSOUserLastName           = "Sankhyan"
-  }
-
-  account_tags = {
-    "Environment"  = "$ENV"
-    "ManagedBy"    = "AFT"
-    "RequestedBy"  = "${GITHUB_ACTOR}"
-    "CreatedDate"  = "$(date +%Y-%m-%d)"
-    "CreatedVia"   = "GitHub-Actions-Bulk-CSV"
-    "BatchNumber"  = "$TIMESTAMP"
-    "BatchPosition" = "$COUNTER"
-  }
-
-  change_management_parameters = {
-    change_requested_by = "${GITHUB_ACTOR}"
-    change_reason       = "Bulk account creation (CSV) via GitHub Actions"
-  }
-
-  custom_fields = {
-    workflow_run_id = "${GITHUB_RUN_ID}"
-    github_actor    = "${GITHUB_ACTOR}"
-    batch_timestamp = "$TIMESTAMP"
-    batch_position  = "$COUNTER"
-    batch_total     = "$ACCOUNT_COUNT"
-  }
-
-  account_customizations_name = "sandbox"
-}
-EOF
+          
+          # ═══════════════════════════════════════════════════════════════
+          # Bulk CSV Request #${COUNTER}: $NAME
+          # Created: $(date '+%Y-%m-%d %H:%M:%S UTC')
+          # Requested by: ${GITHUB_ACTOR}
+          # ═══════════════════════════════════════════════════════════════
+          module "${MODULE_NAME}" {
+            source = "./modules/aft-account-request"
+          
+            control_tower_parameters = {
+              AccountEmail              = "$EMAIL"
+              AccountName               = "$NAME"
+              ManagedOrganizationalUnit = "$OU"
+              SSOUserEmail              = "ravish.snkhyn@gmail.com"
+              SSOUserFirstName          = "Ravish"
+              SSOUserLastName           = "Sankhyan"
+            }
+          
+            account_tags = {
+              "Environment"  = "$ENV"
+              "ManagedBy"    = "AFT"
+              "RequestedBy"  = "${GITHUB_ACTOR}"
+              "CreatedDate"  = "$(date +%Y-%m-%d)"
+              "CreatedVia"   = "GitHub-Actions-Bulk-CSV"
+              "BatchNumber"  = "$TIMESTAMP"
+              "BatchPosition" = "$COUNTER"
+            }
+          
+            change_management_parameters = {
+              change_requested_by = "${GITHUB_ACTOR}"
+              change_reason       = "Bulk account creation (CSV) via GitHub Actions"
+            }
+          
+            custom_fields = {
+              workflow_run_id = "${GITHUB_RUN_ID}"
+              github_actor    = "${GITHUB_ACTOR}"
+              batch_timestamp = "$TIMESTAMP"
+              batch_position  = "$COUNTER"
+              batch_total     = "$ACCOUNT_COUNT"
+            }
+          
+            account_customizations_name = "sandbox"
+          }
+          EOF
             
             # Store account name
             ACCOUNT_NAMES="${ACCOUNT_NAMES}- $NAME ($EMAIL)\n"
@@ -141,16 +141,18 @@ EOF
           
           git add terraform/main.tf
           
-          git commit -m "🚀 Bulk CSV Account Creation: ${{ steps.create.outputs.account_count }} accounts
-
-📋 Accounts:
-${{ steps.create.outputs.account_list }}
-
-🔧 Requested by: ${{ github.actor }}
-⏰ Timestamp: $(date '+%Y-%m-%d %H:%M:%S')
-🎯 Batch ID: $(date +%s)
-
-⚙️ AFT will process these in ~2 minutes"
+          COMMIT_MSG="🚀 Bulk CSV Account Creation: ${{ steps.create.outputs.account_count }} accounts
+          
+          📋 Accounts:
+          ${{ steps.create.outputs.account_list }}
+          
+          🔧 Requested by: ${{ github.actor }}
+          ⏰ Timestamp: $(date '+%Y-%m-%d %H:%M:%S')
+          🎯 Batch ID: $(date +%s)
+          
+          ⚙️ AFT will process these in ~2 minutes"
+          
+          git commit -m "$COMMIT_MSG"
           
           # Push with retry
           for i in {1..5}; do
