@@ -1,9 +1,4 @@
 AccountName,AccountEmail,OrganizationalUnit,Environment
-# Example entries (remove the # to activate):
-# Student01,student01+batch14@training.com,Batch14,Development
-# Student02,student02+batch14@training.com,Batch14,Development
-# Student03,student03+batch14@training.com,Batch14,Development
-# DevAccount,myproject+dev@company.com,Sandbox,Development
-# TestAccount,myproject+test@company.com,Sandbox,Testing
-# ProdAccount,myproject+prod@company.com,LearnMck,Production
-
+# Add your account requests below (remove the # to activate):
+# Example1,user+ex1@gmail.com,LearnMck,Development
+# Example2,user+ex2@gmail.com,Sandbox,Testing
