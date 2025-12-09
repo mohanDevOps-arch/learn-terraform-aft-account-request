@@ -473,3 +473,41 @@ module "testaccount1_1765253931_1" {
 
   account_customizations_name = "sandbox"
 }
+
+# ═══════════════════════════════════════════════════════════════
+# Account: Testfinalbatch14
+# Created: 2025-12-09 04:44:18 UTC
+# Requested by: ravishmck
+# ═══════════════════════════════════════════════════════════════
+module "testfinalbatch14_1765255458" {
+  source = "./modules/aft-account-request"
+
+  control_tower_parameters = {
+    AccountEmail              = "ravish.snkhyn+1100998@gmail.com"
+    AccountName               = "Testfinalbatch14"
+    ManagedOrganizationalUnit = "Batch14"
+    SSOUserEmail              = "ravish.snkhyn@gmail.com"
+    SSOUserFirstName          = "Ravish"
+    SSOUserLastName           = "Sankhyan"
+  }
+
+  account_tags = {
+    "Environment"  = "Development"
+    "ManagedBy"    = "AFT"
+    "RequestedBy"  = "ravishmck"
+    "CreatedDate"  = "2025-12-09"
+    "CreatedVia"   = "GitHub-Actions"
+  }
+
+  change_management_parameters = {
+    change_requested_by = "ravishmck"
+    change_reason       = "Account request via GitHub Actions"
+  }
+
+  custom_fields = {
+    workflow_run_id = "20052228842"
+    github_actor    = "ravishmck"
+  }
+
+  account_customizations_name = "sandbox"
+}
