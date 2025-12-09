@@ -20,7 +20,12 @@ on:
         type: choice
         options:
           - LearnMck
-          - AFTLearn
+          - Sandbox
+          - Batch14
+          - Batch15
+          - AFT-Lab-Rajesh
+          - Security
+          - SuspendedAccount
       
       environment:
         description: '🌍 Environment'
