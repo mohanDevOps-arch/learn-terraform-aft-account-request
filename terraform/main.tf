@@ -430,3 +430,46 @@ module "testfinal1233445678_1765252235" {
 
   account_customizations_name = "sandbox"
 }
+
+# ═══════════════════════════════════════════════════════════════
+# Bulk CSV Request #1: TestAccount1
+# Created: 2025-12-09 04:18:51 UTC
+# Requested by: ravishmck
+# ═══════════════════════════════════════════════════════════════
+module "testaccount1_1765253931_1" {
+  source = "./modules/aft-account-request"
+
+  control_tower_parameters = {
+    AccountEmail              = "user+test1@example.com"
+    AccountName               = "TestAccount1"
+    ManagedOrganizationalUnit = "LearnMck"
+    SSOUserEmail              = "ravish.snkhyn@gmail.com"
+    SSOUserFirstName          = "Ravish"
+    SSOUserLastName           = "Sankhyan"
+  }
+
+  account_tags = {
+    "Environment"  = "DevelopmentTestAccount2,user+test2@example.com,Sandbox,TestingTestAccount3,user+test3@example.com,Batch14,Development"
+    "ManagedBy"    = "AFT"
+    "RequestedBy"  = "ravishmck"
+    "CreatedDate"  = "2025-12-09"
+    "CreatedVia"   = "GitHub-Actions-Bulk-CSV"
+    "BatchNumber"  = "1765253931"
+    "BatchPosition" = "1"
+  }
+
+  change_management_parameters = {
+    change_requested_by = "ravishmck"
+    change_reason       = "Bulk account creation (CSV) via GitHub Actions"
+  }
+
+  custom_fields = {
+    workflow_run_id = "20051788227"
+    github_actor    = "ravishmck"
+    batch_timestamp = "1765253931"
+    batch_position  = "1"
+    batch_total     = "1"
+  }
+
+  account_customizations_name = "sandbox"
+}
