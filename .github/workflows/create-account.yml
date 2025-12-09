@@ -141,6 +141,7 @@ jobs:
           AWS_DEFAULT_REGION: ap-south-1
           ACCOUNT_EMAIL: ${{ inputs.account_email }}
           ACCOUNT_NAME: ${{ inputs.account_name }}
+          AFT_MGMT_ACCOUNT: "809574937450"
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "📊 MONITORING ACCOUNT CREATION PROCESS"
@@ -174,7 +175,30 @@ jobs:
             exit 0
           fi
           
-          echo "✅ AWS credentials configured - starting automated monitoring"
+          echo "✅ AWS credentials configured"
+          echo ""
+          echo "🔄 Assuming role in AFT Management account ($AFT_MGMT_ACCOUNT)..."
+          
+          # Assume role to AFT Management account
+          ROLE_OUTPUT=$(aws sts assume-role \
+            --role-arn "arn:aws:iam::${AFT_MGMT_ACCOUNT}:role/AWSControlTowerExecution" \
+            --role-session-name "GitHubActions-Monitoring" \
+            --duration-seconds 3600 2>&1)
+          
+          if [ $? -ne 0 ]; then
+            echo "❌ Failed to assume role to AFT Management account"
+            echo "$ROLE_OUTPUT"
+            echo ""
+            echo "💡 Ensure Management account credentials have permission to assume AWSControlTowerExecution role"
+            exit 1
+          fi
+          
+          # Extract and export temporary credentials
+          export AWS_ACCESS_KEY_ID=$(echo "$ROLE_OUTPUT" | jq -r '.Credentials.AccessKeyId')
+          export AWS_SECRET_ACCESS_KEY=$(echo "$ROLE_OUTPUT" | jq -r '.Credentials.SecretAccessKey')
+          export AWS_SESSION_TOKEN=$(echo "$ROLE_OUTPUT" | jq -r '.Credentials.SessionToken')
+          
+          echo "✅ Successfully assumed role in AFT Management account"
           echo ""
           
           # Monitor loop
