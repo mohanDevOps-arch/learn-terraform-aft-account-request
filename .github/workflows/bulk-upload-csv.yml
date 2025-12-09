@@ -1,0 +1,209 @@
+name: 📤 Upload CSV for Bulk Account Creation
+
+# Upload CSV content via workflow input
+on:
+  workflow_dispatch:
+    inputs:
+      csv_content:
+        description: '📋 CSV Content (paste entire CSV file content here)'
+        required: true
+        type: string
+        default: |
+          AccountName,AccountEmail,OrganizationalUnit,Environment
+          Student01,student01@example.com,Batch14,Development
+          Student02,student02@example.com,Batch14,Development
+
+jobs:
+  process-uploaded-csv:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+      
+      - name: 🔧 Configure Git
+        run: |
+          git config user.name "AFT Bulk Upload"
+          git config user.email "aft-upload@github.com"
+      
+      - name: ✅ Validate CSV Content
+        id: validate
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📊 PROCESSING UPLOADED CSV"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          
+          CSV_DATA='${{ inputs.csv_content }}'
+          
+          # Save to temp file
+          echo "$CSV_DATA" > /tmp/uploaded.csv
+          
+          # Count valid entries (skip header and comments)
+          VALID_COUNT=$(echo "$CSV_DATA" | grep -v '^#' | grep -v '^AccountName' | grep -v '^[[:space:]]*$' | wc -l | tr -d ' ')
+          
+          echo "📊 Found $VALID_COUNT account(s) to create"
+          echo ""
+          
+          if [ "$VALID_COUNT" -eq 0 ]; then
+            echo "❌ No valid accounts found in CSV"
+            echo "   Make sure CSV has header: AccountName,AccountEmail,OrganizationalUnit,Environment"
+            exit 1
+          fi
+          
+          echo "account_count=$VALID_COUNT" >> $GITHUB_OUTPUT
+          
+          # Preview accounts
+          echo "Accounts to create:"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "$CSV_DATA" | grep -v '^#' | grep -v '^AccountName' | grep -v '^[[:space:]]*$' | head -10
+          if [ "$VALID_COUNT" -gt 10 ]; then
+            echo "... and $((VALID_COUNT - 10)) more"
+          fi
+      
+      - name: 📝 Generate Terraform Modules
+        id: generate
+        run: |
+          TIMESTAMP=$(date +%s)
+          GITHUB_ACTOR="${{ github.actor }}"
+          GITHUB_RUN_ID="${{ github.run_id }}"
+          CSV_DATA='${{ inputs.csv_content }}'
+          COUNTER=0
+          ACCOUNT_LIST=""
+          
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🔧 GENERATING TERRAFORM MODULES"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          
+          # Process CSV (skip header and comments)
+          echo "$CSV_DATA" | grep -v '^#' | grep -v '^AccountName' | grep -v '^[[:space:]]*$' | while IFS=',' read -r NAME EMAIL OU ENV; do
+            # Trim whitespace
+            NAME=$(echo "$NAME" | xargs)
+            EMAIL=$(echo "$EMAIL" | xargs)
+            OU=$(echo "$OU" | xargs)
+            ENV=$(echo "$ENV" | xargs)
+            
+            COUNTER=$((COUNTER + 1))
+            
+            # Generate safe module name
+            MODULE_NAME=$(echo "$NAME" | tr '[:upper:]' '[:lower:]' | tr ' ' '_' | tr -cd '[:alnum:]_')
+            MODULE_NAME="${MODULE_NAME}_upload_${TIMESTAMP}_${COUNTER}"
+            
+            echo "[$COUNTER] Creating module for: $NAME"
+            
+            # Append to main.tf
+            cat >> terraform/main.tf << EOF
+          
+          # ═══════════════════════════════════════════════════════════════
+          # Uploaded CSV #${COUNTER}: $NAME
+          # Created: $(date '+%Y-%m-%d %H:%M:%S UTC')
+          # Uploaded by: ${GITHUB_ACTOR}
+          # ═══════════════════════════════════════════════════════════════
+          module "${MODULE_NAME}" {
+            source = "./modules/aft-account-request"
+          
+            control_tower_parameters = {
+              AccountEmail              = "$EMAIL"
+              AccountName               = "$NAME"
+              ManagedOrganizationalUnit = "$OU"
+              SSOUserEmail              = "ravish.snkhyn@gmail.com"
+              SSOUserFirstName          = "Ravish"
+              SSOUserLastName           = "Sankhyan"
+            }
+          
+            account_tags = {
+              "Environment"  = "$ENV"
+              "ManagedBy"    = "AFT"
+              "RequestedBy"  = "${GITHUB_ACTOR}"
+              "CreatedDate"  = "$(date +%Y-%m-%d)"
+              "CreatedVia"   = "CSV-Upload"
+              "UploadBatch"  = "$TIMESTAMP"
+            }
+          
+            change_management_parameters = {
+              change_requested_by = "${GITHUB_ACTOR}"
+              change_reason       = "Bulk creation via CSV upload"
+            }
+          
+            custom_fields = {
+              workflow_run_id = "${GITHUB_RUN_ID}"
+              upload_timestamp = "$TIMESTAMP"
+              upload_method = "csv_paste"
+            }
+          
+            account_customizations_name = "sandbox"
+          }
+          EOF
+            
+          done
+          
+          FINAL_COUNT=$(echo "$CSV_DATA" | grep -v '^#' | grep -v '^AccountName' | grep -v '^[[:space:]]*$' | wc -l | tr -d ' ')
+          echo "final_count=$FINAL_COUNT" >> $GITHUB_OUTPUT
+          
+          echo ""
+          echo "✅ Generated $FINAL_COUNT Terraform modules"
+      
+      - name: 💾 Commit & Push
+        run: |
+          git pull --rebase origin main || true
+          
+          git add terraform/main.tf
+          
+          COMMIT_MSG="📤 Bulk Upload: ${{ steps.generate.outputs.final_count }} accounts via CSV
+          
+          📊 Uploaded by: ${{ github.actor }}
+          📅 Date: $(date '+%Y-%m-%d %H:%M:%S')
+          
+          ⚙️ AFT will process in ~2 minutes"
+          
+          git commit -m "$COMMIT_MSG"
+          
+          # Push with retry
+          for i in {1..5}; do
+            if git push; then
+              echo "✅ Pushed successfully!"
+              break
+            else
+              echo "⚠️  Retry $i/5..."
+              git pull --rebase origin main
+              sleep 2
+            fi
+          done
+      
+      - name: 🎉 Create Summary
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY << 'SUMMARY'
+          ## 📤 CSV Upload Complete!
+          
+          ### 📋 Batch Summary
+          | Metric | Value |
+          |--------|-------|
+          | **Accounts Created** | ${{ steps.generate.outputs.final_count }} |
+          | **Upload Method** | CSV Paste |
+          | **Uploaded By** | @${{ github.actor }} |
+          | **Status** | ✅ Processing |
+          
+          ### ⏱️ Timeline
+          - **Now**: Terraform modules created ✅
+          - **+2 min**: CodePipeline triggered
+          - **+5 min**: DynamoDB entries created
+          - **+20 min**: All accounts ACTIVE in Organizations
+          
+          ### 💰 Cost Control
+          Each account gets:
+          - ✅ $200/month budget
+          - ✅ Email alerts at 80%, 90%, 100%
+          - ✅ Forecasted spending alerts
+          
+          ### 🔍 Monitor Progress
+          - [CodePipeline](https://ap-south-1.console.aws.amazon.com/codesuite/codepipeline/pipelines/ct-aft-account-request/view)
+          - [Organizations](https://console.aws.amazon.com/organizations/v2/home/accounts)
+          - [DynamoDB](https://ap-south-1.console.aws.amazon.com/dynamodbv2/home?region=ap-south-1#table?name=aft-request)
+          
+          ---
+          🤖 **Automated by AFT** | 💰 **$200 Budget/Account** | 🔒 **Secured by Control Tower**
+          SUMMARY
+
+
