@@ -5700,3 +5700,43 @@ module "devdutt_kha_1765541277_115" {
 
   account_customizations_name = "sandbox"
 }
+
+# ═══════════════════════════════════════════════════════════════
+# Bulk CSV #1: mohan
+# Created: 2025-12-12 18:00:37 UTC
+# From: bulk-accounts.csv
+# ═══════════════════════════════════════════════════════════════
+module "mohan_1765562437_1" {
+  source = "./modules/aft-account-request"
+
+  control_tower_parameters = {
+    AccountEmail              = "mohankandikuppa119+test@gmail.com"
+    AccountName               = "mohan"
+    ManagedOrganizationalUnit = "Batch15"
+    SSOUserEmail              = "ravish.snkhyn@gmail.com"
+    SSOUserFirstName          = "Ravish"
+    SSOUserLastName           = "Sankhyan"
+  }
+
+  account_tags = {
+    "Environment"  = "Development"
+    "ManagedBy"    = "AFT"
+    "RequestedBy"  = "mohanDevOps-arch"
+    "CreatedDate"  = "2025-12-12"
+    "CreatedVia"   = "GitHub-Actions-CSV-File"
+    "BatchNumber"  = "1765562437"
+  }
+
+  change_management_parameters = {
+    change_requested_by = "mohanDevOps-arch"
+    change_reason       = "Bulk creation from CSV file"
+  }
+
+  custom_fields = {
+    workflow_run_id = "20175488039"
+    batch_timestamp = "1765562437"
+    csv_source      = "bulk-accounts.csv"
+  }
+
+  account_customizations_name = "sandbox"
+}
